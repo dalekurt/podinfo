@@ -1,0 +1,40 @@
+version: '1.0'
+stages:
+  - checkout
+  - build
+  - scan
+  - report
+  - push
+steps:
+  main_clone:
+    title: Cloning main repository...
+    stage: checkout
+    type: git-clone
+    repo: '${{CF_REPO_OWNER}}/${{CF_REPO_NAME}}'
+    revision: '${{CF_REVISION}}'
+  BuildDockerImageArtifact:
+    title: Building Docker Image Artifact
+    stage: build
+    type: build
+    image_name: "${{CF_ACCOUNT}}/${{CF_REPO_NAME}}"
+    tag: ${{CF_REVISION}}
+    dockerfile: "Dockerfile"
+  SecuritScan:
+    title: Run Clair Image Vulnerability Scan
+    stage: scan
+    image: codefresh/cfstep-paclair:3.1.0
+    environment:
+    - IMAGE=${{IMAGE_NAME}}
+    - TAG=${{CF_BRANCH_TAG_NORMALIZED}}-${{CF_SHORT_REVISION}}
+    on_success:
+    metadata:
+    set:
+    - ${{BuildImage.imageId}}:
+    - CLAIR_REPORT: "https://g.codefresh.io/api/testReporting/v2/${{PIPELINE_ID}}/${{CF_BRANCH_TAG_NORMALIZED}}/gc/${{CF_STORAGE_INTEGRATION}}/${{BUCKET_NAME}}/${{CF_BUILD_ID}}/clair-scan-{{$IMAGE_NAME_NORMALIZED}}-${{CF_BRANCH_TAG_NORMALIZED}}-${{CF_SHORT_REVISION}}.html"
+  UploadReport:
+  title: Upload Clair Image Scan Vulnerability Report Cloud Storage
+  stage: report
+  image: codefresh/cf-docker-test-reporting
+  environment:
+  - REPORT_DIR=reports
+  - REPORT_INDEX_FILE=index.html
